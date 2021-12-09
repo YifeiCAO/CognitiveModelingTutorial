@@ -1,0 +1,154 @@
+---
+title: "Codes for modeling book"
+author: "Yifei Cao"
+date: "12/7/2021"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This R Markdown document is made interactive using Shiny. Unlike the more traditional workflow of creating static reports, you can now create documents that allow your readers to change the assumptions underlying your analysis and see the results immediately. 
+
+To learn more, see [Interactive Documents](http://rmarkdown.rstudio.com/authoring_shiny.html).
+
+## Inputs and Outputs
+
+You can embed Shiny inputs and outputs in your document. Outputs are automatically updated whenever inputs change.  This demonstrates how a standard R plot can be made interactive by wrapping it in the Shiny `renderPlot` function. The `selectInput` and `sliderInput` functions create the input widgets used to drive the plot.
+
+```{r eruptions, echo=FALSE}
+inputPanel(
+  selectInput("n_breaks", label = "Number of bins:",
+              choices = c(10, 20, 35, 50), selected = 20),
+  
+  sliderInput("bw_adjust", label = "Bandwidth adjustment:",
+              min = 0.2, max = 2, value = 1, step = 0.2)
+)
+
+renderPlot({
+  hist(faithful$eruptions, probability = TRUE, breaks = as.numeric(input$n_breaks),
+       xlab = "Duration (minutes)", main = "Geyser eruption duration")
+  
+  dens <- density(faithful$eruptions, adjust = input$bw_adjust)
+  lines(dens, col = "blue")
+})
+```
+
+## Embedded Application
+
+It's also possible to embed an entire Shiny application within an R Markdown document using the `shinyAppDir` function. This example embeds a Shiny application located in another directory:
+
+```{r tabsets, echo=FALSE}
+shinyAppDir(
+  system.file("examples/06_tabsets", package = "shiny"),
+  options = list(
+    width = "100%", height = 550
+  )
+)
+```
+
+Note the use of the `height` parameter to determine how much vertical space the embedded application should occupy.
+
+You can also use the `shinyApp` function to define an application inline rather then in an external directory.
+
+In all of R code chunks above the `echo = FALSE` attribute is used. This is to prevent the R code within the chunk from rendering in the document alongside the Shiny components.
+
+
+Building a random-walk model
+
+```{r}
+# Chapter 2, random-walk model
+nreps <- 10000 # number of random walks
+nsamples <- 2000 # number of times that evidence is being sampled for each decision
+
+drift <- 0.03 # drift rate, the amount of evidence that is available during sampling
+sdrw <- 0.3 # standard deviation of the distribution from which we will sample the evidence
+criterion <- 3 # distance of the two boundaries
+
+latencies <- rep(0,nreps) 
+responses <- rep(0,nreps)
+evidence <- matrix(0,nreps,nsamples+1)
+
+for (i in c(1:nreps)) {
+  evidence[i,] <- 
+    cumsum(c(0,rnorm(nsamples,drift,sdrw))) # use of rnorm, drawing nsamples observations from a normal distribution with mean drift and sd sdrw
+  p <- which(abs(evidence[i,])>criterion)[1] # when randomwalk crossed a response boundary, assign to p
+  responses[i] <- sign(evidence[i,p]) # evaluate the sign of the evidence where the response was associated with top or bottom boundary
+  latencies[i] <- p # p will be recorded as the ith observation in latencies
+}
+```
+
+And plot the up to 5 random-walk paths, and the histograms of latencies
+```{r}
+#plot up to 5 random-walk paths
+tbpn <- min(nreps,5)
+plot(1:max(latencies[1:tbpn]) + 10, type = "n",las = 1,
+     ylim = c(-criterion - 0.5, criterion + 0.5),
+     ylab = "Evidence", xlab = "Decision time")
+for (i in c(1:tbpn)) {
+  lines(evidence[i,1:(latencies[i] - 1)])
+}
+abline(h = c(criterion,-criterion),lty = "dashed")
+
+#plot histograms of latencies
+par(mfrow=c(2,1))
+toprt <- latencies[responses>0]
+topprop <- length(toprt)/nreps
+hist(toprt,col='gray',
+     xlab='Decision time', xlim=c(0,max(latencies)),
+     main=paste('Top responses (',as.numeric(topprop),
+                ') m=',as.character(signif(mean(toprt),4)),
+                sep=''),las=1)
+botrt <- latencies[responses<0]
+botprop <- length(toprt)/nreps
+hist(botrt,col='gray',
+     xlab='Decision time', xlim=c(0,max(latencies)),
+     main=paste('Top responses (',as.numeric(botprop),
+                ') m=',as.character(signif(mean(botrt),4)),
+                sep=''),las=1)
+```
+
+Now add trial-to-trial variability of the starting value of the random-walk and the drift rate. Firstly, lets introduce variability to starting value.
+```{r}
+nreps <- 10000 # number of random walks
+nsamples <- 2000 # number of times that evidence is being sampled for each decision
+
+drift <- 0.03 # drift rate, the amount of evidence that is available during sampling
+sdrw <- 0.3 # standard deviation of the distribution from which we will sample the evidence
+criterion <- 3 # distance of the two boundaries
+t2tsd <- c(0.0,0.25)
+
+latencies <- rep(0,nreps) 
+responses <- rep(0,nreps)
+evidence <- matrix(0,nreps,nsamples+1)
+
+for (i in c(1:nreps)) {
+  sp <- rnorm(1,0,t2tsd[1])
+  dr <- rnorm(1,drift,t2tsd[2])
+  evidence[i,] <- 
+    cumsum(c(sp,rnorm(nsamples,drift,sdrw))) # use of rnorm, drawing nsamples observations from a normal distribution with mean drift and sd sdrw
+  p <- which(abs(evidence[i,])>criterion)[1] # when randomwalk crossed a response boundary, assign to p
+  responses[i] <- sign(evidence[i,p]) # evaluate the sign of the evidence where the response was associated with top or bottom boundary
+  latencies[i] <- p # p will be recorded as the ith observation in latencies
+}
+
+#plot histograms of latencies
+par(mfrow=c(2,1))
+toprt <- latencies[responses>0]
+topprop <- length(toprt)/nreps
+hist(toprt,col='gray',
+     xlab='Decision time', xlim=c(0,max(latencies)),
+     main=paste('Top responses (',as.numeric(topprop),
+                ') m=',as.character(signif(mean(toprt),4)),
+                sep=''),las=1)
+botrt <- latencies[responses<0]
+botprop <- length(toprt)/nreps
+hist(botrt,col='gray',
+     xlab='Decision time', xlim=c(0,max(latencies)),
+     main=paste('Top responses (',as.numeric(botprop),
+                ') m=',as.character(signif(mean(botrt),4)),
+                sep=''),las=1)
+```
+
